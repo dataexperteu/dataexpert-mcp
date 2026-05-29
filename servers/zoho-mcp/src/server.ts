@@ -6,8 +6,9 @@
  * network at http://zoho-mcp:<port>/mcp. stdio would re-couple lifecycles.
  *
  * Session model: stateless. Each POST /mcp gets a fresh McpServer + transport.
- * The token cache (tokenManager) and the Prisma connection are module-level
- * singletons, so they survive across requests regardless.
+ * The token cache (tokenManager) is a module-level singleton, so it survives
+ * across requests regardless. There is no database — the refresh token comes from
+ * the env (secrets.env), the access token is cached in memory.
  *
  * /healthz is a cheap liveness probe that does NOT call Zoho — a 30s healthcheck
  * must never burn Zoho's daily API quota.
@@ -17,7 +18,7 @@ import express, { type Request, type Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { config } from './config.js';
-import { initContext, disposeContext } from './context.js';
+import { isConfigured } from './zoho/tokenManager.js';
 import { registerZohoTools } from './tools/register.js';
 
 const SERVER_NAME = 'zoho-mcp';
@@ -32,7 +33,11 @@ function buildMcpServer(): McpServer {
 }
 
 async function main(): Promise<void> {
-    await initContext();
+    if (!isConfigured()) {
+        // Non-fatal: the server still boots and /healthz works, but tools will
+        // error until ZOHO_CLIENT_ID/SECRET/REFRESH_TOKEN are set in the env.
+        console.warn('[zoho-mcp] Zoho credentials not fully configured (need ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN) — tools will error until set.');
+    }
 
     const app = express();
     app.use(express.json());
@@ -84,9 +89,7 @@ async function main(): Promise<void> {
     // Graceful shutdown — give in-flight requests a moment, then force.
     const shutdown = (signal: string) => {
         console.log(`[zoho-mcp] ${signal} received — shutting down.`);
-        httpServer.close(() => {
-            void disposeContext().finally(() => process.exit(0));
-        });
+        httpServer.close(() => process.exit(0));
         setTimeout(() => process.exit(0), 5000).unref();
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));

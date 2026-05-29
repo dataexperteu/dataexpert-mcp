@@ -2,30 +2,27 @@
     "name": "@dataexpert-mcp/zoho",
     "version": "0.1.0",
     "private": true,
-    "description": "Zoho CRM MCP server — stateless gateway exposing Zoho account/contact/email tools over Streamable HTTP.",
+    "description": "Zoho CRM MCP server — self-contained gateway exposing Zoho account/contact/email tools over Streamable HTTP.",
     "type": "module",
     "main": "dist/server.js",
     "engines": {
         "node": ">=20"
     },
     "scripts": {
-        "build": "prisma generate && tsc -p tsconfig.json",
+        "build": "tsc -p tsconfig.json",
         "start": "node dist/server.js",
         "dev": "tsx watch src/server.ts",
         "typecheck": "tsc --noEmit -p tsconfig.json",
-        "prisma:generate": "prisma generate",
         "bootstrap": "tsx src/bootstrap.ts"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@prisma/client": "^5.7.0",
         "express": "^5.2.1",
         "zod": "^4.4.3"
     },
     "devDependencies": {
         "@types/express": "^5.0.0",
         "@types/node": "^22.0.0",
-        "prisma": "^5.7.0",
         "tsx": "^4.21.0",
         "typescript": "^5.3.3"
     }

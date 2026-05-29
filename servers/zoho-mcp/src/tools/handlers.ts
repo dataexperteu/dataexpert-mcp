@@ -13,7 +13,7 @@ import {
     type CanonicalAccount,
     type CanonicalAccountWrite,
 } from '../zoho/mappers.js';
-import { getGrantedScopes } from '../context.js';
+import { getGrantedScopes } from '../zoho/tokenManager.js';
 
 // ---- search_accounts ----
 
@@ -86,11 +86,11 @@ export async function doAuthStatus(): Promise<AuthStatusResult> {
     // the cheapest call that proves accounts.READ works end-to-end (token + scope).
     try {
         await searchAccounts({ q: 'aa', perPage: 1 });
-        return { authenticated: true, scopes: await getGrantedScopes(), lastError: null };
+        return { authenticated: true, scopes: getGrantedScopes(), lastError: null };
     } catch (err) {
         return {
             authenticated: false,
-            scopes: await getGrantedScopes(),
+            scopes: getGrantedScopes(),
             lastError: err instanceof Error ? err.message : String(err),
         };
     }
