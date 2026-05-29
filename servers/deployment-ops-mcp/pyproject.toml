@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "dataexpert-deployment-ops-mcp"
+version = "1.0.0"
+description = "Deployment operations MCP server for DataExpert agentic AI"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.0",
+    "pyyaml",
+    "python-dotenv",
+]
+
+[project.scripts]
+dataexpert-deployment-ops-mcp = "server:main"
