@@ -1,8 +1,10 @@
 /**
  * Zoho access-token manager — refresh-on-demand with in-memory cache and mutex.
  *
- * Ported from the CSM app (server/src/integrations/zoho/tokenManager.ts). Only the
- * config source (env → config) and the accounts base URL (now DC-derived) changed.
+ * Env-only model (no database). Zoho's refresh token is long-lived and stable
+ * (Zoho returns the same one on every refresh), so it lives in the env / shared
+ * secrets.env as ZOHO_REFRESH_TOKEN — like the other servers' static credentials.
+ * The short-lived access token is cached in memory and refreshed on demand.
  *
  * - In-memory cache: a fresh access token is reused without a network round-trip.
  * - Mutex: if the token is expired, ONE caller refreshes and all others await it,
@@ -12,15 +14,16 @@
  * the server uses a per-request McpServer instance (stateless transport).
  */
 
-import { PrismaClient } from '@prisma/client';
 import { config } from '../config.js';
-import { PrismaTokenStore } from './tokenStore.js';
 import { ZohoAuthError } from './errors.js';
 
 let cachedToken: string | null = null;
 let cacheExpiry: Date | null = null;
 let refreshInFlight: Promise<string> | null = null;
-let store: PrismaTokenStore | null = null;
+// Scopes Zoho actually granted, captured from the last refresh response. Zoho
+// silently narrows scopes by the user's CRM role; surfacing this lets auth_status
+// report the real operational ceiling without a database.
+let grantedScopes: string[] = [];
 
 const EXPIRE_BUFFER_SECONDS = 60;
 
@@ -29,30 +32,20 @@ function isTokenFresh(): boolean {
     return cacheExpiry.getTime() - Date.now() > EXPIRE_BUFFER_SECONDS * 1000;
 }
 
-/**
- * POST to Zoho's token endpoint with our stored refresh token.
- * Returns the new access token and writes it back to the DB.
- */
+/** POST to Zoho's token endpoint with the configured refresh token. */
 async function performRefresh(): Promise<string> {
-    if (!store) {
-        throw new ZohoAuthError('[tokenManager] Store not initialized. Call warmup() first.');
-    }
-
-    const { clientId, clientSecret, userMail } = config.zoho;
-    if (!clientId || !clientSecret || !userMail) {
-        throw new ZohoAuthError('[tokenManager] Zoho credentials not configured.');
-    }
-
-    const row = await store.load(clientId, userMail);
-    if (!row) {
-        throw new ZohoAuthError('[tokenManager] No ZohoToken row found. Run bootstrap first.');
+    const { clientId, clientSecret, refreshToken } = config.zoho;
+    if (!clientId || !clientSecret || !refreshToken) {
+        throw new ZohoAuthError(
+            '[tokenManager] Zoho credentials not configured (need ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN).'
+        );
     }
 
     const body = new URLSearchParams({
         grant_type: 'refresh_token',
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: row.refreshToken,
+        refresh_token: refreshToken,
     });
 
     const response = await fetch(`${config.zoho.accountsBase}/oauth/v2/token`, {
@@ -85,16 +78,11 @@ async function performRefresh(): Promise<string> {
     }
 
     const expiresInSeconds = typeof expiresIn === 'number' ? expiresIn : 3600;
-    const newExpiry = new Date(Date.now() + expiresInSeconds * 1000);
-
-    await store.updateAccessToken(clientId, userMail, {
-        accessToken,
-        accessTokenExpiry: newExpiry,
-        scopes: typeof scopesRaw === 'string' ? scopesRaw : undefined,
-    });
-
     cachedToken = accessToken;
-    cacheExpiry = newExpiry;
+    cacheExpiry = new Date(Date.now() + expiresInSeconds * 1000);
+    if (typeof scopesRaw === 'string') {
+        grantedScopes = scopesRaw.split(' ').filter(Boolean);
+    }
 
     return accessToken;
 }
@@ -127,38 +115,15 @@ export async function forceRefresh(): Promise<string> {
     return getAccessToken();
 }
 
-/**
- * Wires up the token store and pre-loads any cached access token from the DB.
- * MUST be called once on server start before any getAccessToken() call.
- */
-export async function warmup(prisma: PrismaClient): Promise<void> {
-    store = new PrismaTokenStore(prisma);
+/** Scopes Zoho granted (from the last refresh). Empty until the first refresh. */
+export function getGrantedScopes(): string[] {
+    return grantedScopes;
+}
 
-    const { clientId, userMail } = config.zoho;
-    if (!clientId || !userMail) {
-        console.log('[zoho] Credentials not configured — skipping tokenManager warmup.');
-        return;
-    }
-
-    try {
-        const row = await store.load(clientId, userMail);
-        if (!row) {
-            console.log('[zoho] No ZohoToken row found — run bootstrap before making API calls.');
-            return;
-        }
-        if (row.accessToken && row.accessTokenExpiry) {
-            cachedToken = row.accessToken;
-            cacheExpiry = row.accessTokenExpiry;
-            const isFresh = isTokenFresh();
-            console.log(
-                `[zoho] Warmup complete. Cached access token is ${isFresh ? 'still valid' : 'expired — will refresh on first API call'}.`
-            );
-        } else {
-            console.log('[zoho] Warmup: no access token in DB — will refresh on first API call.');
-        }
-    } catch (err) {
-        console.error('[zoho] Warmup failed (non-fatal):', err instanceof Error ? err.message : err);
-    }
+/** True if the minimum Zoho credentials are present in the env. */
+export function isConfigured(): boolean {
+    const { clientId, clientSecret, refreshToken } = config.zoho;
+    return Boolean(clientId && clientSecret && refreshToken);
 }
 
 /** Resets all in-memory state. Used by unit tests for isolation. */
@@ -166,10 +131,5 @@ export function clearCache(): void {
     cachedToken = null;
     cacheExpiry = null;
     refreshInFlight = null;
-    store = null;
-}
-
-/** Injects a token store directly — used by unit tests without a live DB. */
-export function _setStoreForTesting(s: PrismaTokenStore): void {
-    store = s;
+    grantedScopes = [];
 }
