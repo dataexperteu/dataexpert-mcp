@@ -1,0 +1,37 @@
+// Zoho MCP datastore — the gateway owns its OWN store, separate from the CSM app.
+//
+// This is the security boundary the re-platform buys us: the encrypted Zoho
+// refresh/access tokens live HERE, not in the CSM database. A compromise of the
+// CSM container yields zero Zoho credentials.
+//
+// The single table is ZohoToken. Sync watermarks, the outbound queue, conflict
+// alerts, pairing, contact triage, and email storage all stay in the CSM app —
+// they are CSM business state, not Zoho auth state. See the repo plan:
+// ~/.claude/plans/lets-plan-for-the-witty-backus.md (decision #2, the boundary).
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model ZohoToken {
+    id                String    @id @default(cuid())
+    clientId          String
+    userMailId        String // Zoho login email (the account that owns the tokens)
+    refreshToken      String // AES-256-GCM encrypted at rest (see src/zoho/tokenCipher.ts)
+    accessToken       String? // AES-256-GCM encrypted at rest; null until first refresh
+    accessTokenExpiry DateTime?
+    apiDomain         String // e.g. https://www.zohoapis.eu
+    // The actual scopes Zoho granted (space-separated, e.g. "ZohoCRM.modules.accounts.READ ...").
+    // Zoho silently narrows scopes at grant time based on the user's CRM role.
+    // Capturing this surfaces the operational ceiling without manual introspection.
+    scopes            String?
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+
+    @@unique([clientId, userMailId])
+}
