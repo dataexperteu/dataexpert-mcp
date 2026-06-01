@@ -1,14 +1,13 @@
 # Zoho MCP server
 
-A stateless **MCP (Model Context Protocol) gateway** to Zoho CRM. It owns all
-Zoho-specific concerns — OAuth, token refresh, encryption, the HTTP client, field
-mapping to a canonical shape, and rate-limit/error translation — and exposes them
-as typed tools over Streamable HTTP. Consumers (the DataExpert CSM app today;
-LLM agents / the Trend Engine later) speak one stable protocol and never touch
-Zoho's API internals.
+A self-contained **MCP (Model Context Protocol) gateway** to Zoho CRM. It owns all
+Zoho-specific concerns — OAuth token refresh, the HTTP client, field mapping to a
+canonical shape, and rate-limit/error translation — and exposes them as typed tools
+over Streamable HTTP. Consumers (the DataExpert CSM app today; LLM agents / the
+Trend Engine later) speak one stable protocol and never touch Zoho's API internals.
 
-Background & design: `~/.claude/plans/lets-plan-for-the-witty-backus.md` in the
-CSM repo, and the project memory `project_zoho_mcp_pivot`.
+It sits beside the other servers in this repo (`servers/zoho-mcp/`) but is fully
+**independent** — its own dependency closure, no `core_engine` import, no database.
 
 ## Why direct HTTP (not the Zoho SDK)
 
@@ -16,6 +15,13 @@ The Zoho user is a non-admin who can only be granted three module READ scopes
 (`accounts`, `contacts`, `emails`). The official SDK fetches field metadata on
 every call, which needs `settings.fields.READ` — unobtainable. So the gateway
 calls the Zoho v8 REST API directly; module-level scopes are enough.
+
+## No database — token handling
+
+Zoho's **refresh token is long-lived and stable** (Zoho returns the same one on
+every refresh), so it lives in the env as `ZOHO_REFRESH_TOKEN` — like the other
+servers' static credentials. The short-lived **access token** is cached in memory
+and refreshed on demand. No Postgres, no Prisma, no encryption-at-rest layer.
 
 ## Tools
 
@@ -40,12 +46,12 @@ no Zoho call).
 ## Local development
 
 ```bash
-cp .env.example .env          # fill in DATABASE_URL, Zoho creds, encryption key
+cp .env.example .env          # fill in ZOHO_CLIENT_ID / ZOHO_CLIENT_SECRET / ZOHO_DC
 npm install
-npx prisma db push            # create the ZohoToken table in your dev DB
-npm run build                 # prisma generate + tsc
-# one-time: obtain a refresh token (grant token shell-only):
+# one-time: obtain a refresh token (grant token shell-only). It PRINTS the token:
 ZOHO_BOOTSTRAP_GRANT_TOKEN=1000.xxxx npm run bootstrap
+# paste the printed ZOHO_REFRESH_TOKEN into .env
+npm run build
 npm start                     # serves :$MCP_PORT
 ```
 
@@ -58,23 +64,16 @@ npx @modelcontextprotocol/inspector
 
 ## Deployment
 
-Runs as a sidecar container next to the CSM app, with its **own Postgres**
-(`zoho-mcp-db`) holding only the encrypted `ZohoToken` row. The CSM app reaches it
-at `http://zoho-mcp:3001/mcp` over the internal docker network. See the CSM repo's
-`DEPLOYMENT.md` (added in the cutover phase) for compose + secret + version-pin
+Runs as a container next to the CSM app; the CSM app reaches it at
+`http://zoho-mcp:3001/mcp` over the internal docker network. Config (incl.
+`ZOHO_REFRESH_TOKEN`) comes from the env / shared `secrets.env`. No database
+service is required. See the CSM repo's cutover runbook for compose + version-pin
 details.
-
-### Production cutover note
-
-At cutover you do **not** run `bootstrap`. You migrate the existing encrypted
-`ZohoToken` row out of the CSM database and **carry the same
-`ZOHO_TOKEN_ENCRYPTION_KEY`** over, so the `enc:v1:` token decrypts as-is and no
-Zoho token slot is consumed.
 
 ## Scripts
 
-- `npm run build` — `prisma generate` + `tsc`
+- `npm run build` — `tsc`
 - `npm start` — run compiled server (`dist/server.js`)
 - `npm run dev` — watch mode (`tsx`)
 - `npm run typecheck` — `tsc --noEmit`
-- `npm run bootstrap` — one-time OAuth grant-token exchange
+- `npm run bootstrap` — one-time OAuth grant-token exchange (prints `ZOHO_REFRESH_TOKEN`)

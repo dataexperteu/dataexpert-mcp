@@ -21,6 +21,11 @@ export const config = {
     zoho: {
         clientId: opt(process.env.ZOHO_CLIENT_ID),
         clientSecret: opt(process.env.ZOHO_CLIENT_SECRET),
+        // The long-lived Zoho refresh token. Stable (Zoho returns the same one on
+        // every refresh), so it lives in the env / shared secrets.env like the other
+        // servers' static credentials — no database needed. Obtain once via `npm run
+        // bootstrap`, which prints it.
+        refreshToken: opt(process.env.ZOHO_REFRESH_TOKEN),
         userMail: opt(process.env.ZOHO_USER_MAIL),
         redirectUri: opt(process.env.ZOHO_REDIRECT_URI),
         dc,

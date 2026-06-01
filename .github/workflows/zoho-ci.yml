@@ -1,21 +1,21 @@
 # CI/build pipeline for the Zoho MCP server.
 #
 # Per the repo convention, each server owns its own pipeline + version. This one:
-#   - on PRs touching servers/zoho: typecheck + build (fast feedback, no publish)
+#   - on PRs touching servers/zoho-mcp: typecheck + build (fast feedback, no publish)
 #   - on a tag `zoho-v<semver>`: build + push the versioned image to GHCR
 #
-# The CSM compose pins ghcr.io/dataexperteu/dataexpert-mcp-zoho:<version>, so a
-# release is just: tag `zoho-v0.1.0` -> image `…:0.1.0` -> bump ZOHO_MCP_VERSION.
+# Release = tag `zoho-v0.2.0` -> image `…:0.2.0` -> bump ZOHO_MCP_VERSION in the
+# CSM compose.
 #
-# Hardening TODO (per the plan's CI/CD section): pin these actions to commit SHAs
-# rather than major-version tags before this drives production deploys.
+# Hardening TODO: pin these actions to commit SHAs (and move off the Node 20
+# action runtime, deprecated 2026-06-02) before this drives production deploys.
 
 name: zoho-mcp
 
 on:
   pull_request:
     paths:
-      - 'servers/zoho/**'
+      - 'servers/zoho-mcp/**'
       - '.github/workflows/zoho-ci.yml'
   push:
     tags:
@@ -23,7 +23,7 @@ on:
 
 defaults:
   run:
-    working-directory: servers/zoho
+    working-directory: servers/zoho-mcp
 
 jobs:
   build-test:
@@ -34,13 +34,8 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: servers/zoho/package-lock.json
+          cache-dependency-path: servers/zoho-mcp/package-lock.json
       - run: npm ci
-      - name: Generate Prisma client
-        run: npx prisma generate
-        env:
-          # prisma generate doesn't connect; a dummy URL satisfies the schema.
-          DATABASE_URL: postgresql://user:pass@localhost:5432/db
       - run: npm run typecheck
       - run: npm run build
 
@@ -69,7 +64,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: servers/zoho
+          context: servers/zoho-mcp
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
