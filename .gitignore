@@ -1,0 +1,9 @@
+security/
+runs/
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+go.work
+go.work.sum

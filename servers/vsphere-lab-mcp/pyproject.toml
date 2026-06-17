@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "dataexpert-vsphere-lab-mcp"
+version = "0.1.0"
+description = "DataExpert vSphere Lab MCP wrapper around the deterministic lab provisioner"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.0",
+    "python-dotenv",
+]
+
+[project.scripts]
+dataexpert-vsphere-lab-mcp = "server:main"
