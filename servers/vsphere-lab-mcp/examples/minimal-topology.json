@@ -1,0 +1,20 @@
+{
+  "name": "example-vsphere-lab",
+  "defaults": {
+    "source_template": "Neo UBUNTU 24.04",
+    "bootstrap_network": "VM Network",
+    "final_network": "Lab Isolated",
+    "host": "172.16.85.25",
+    "datastore": "SSD-01 1 TB",
+    "cpu": 1,
+    "memory_mb": 4096,
+    "disk_gb": 40
+  },
+  "vms": [
+    {
+      "name": "example-lab-node-01",
+      "role": "example",
+      "group": "primary"
+    }
+  ]
+}

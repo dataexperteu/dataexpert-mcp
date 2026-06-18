@@ -1,6 +1,9 @@
-"""Deployment operations MCP server for DataExpert agentic AI.
+"""Agentic-chat deployment MCP server for DataExpert agentic AI.
 
-Entry point for the dataexpert-deployment-ops-mcp package.
+Day-2 application deployment for agentic-chat: updates the checked-out ref and
+restarts the service over SSH. VM provisioning is owned by the vSphere Lab MCP.
+
+Entry point for the dataexpert-agentic-chat-deploy-mcp package.
 """
 from __future__ import annotations
 
@@ -15,7 +18,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 
 # Load local secrets.env so the MCP server can access SSH and sudo credentials.
 try:
@@ -23,7 +26,7 @@ try:
 except TypeError:
     load_dotenv(ROOT / "security" / "secrets.env", override=False)
 
-mcp = FastMCP("deployment-ops")
+mcp = FastMCP("agentic-chat-deploy")
 
 
 def _read_inventory() -> Dict[str, Any]:
