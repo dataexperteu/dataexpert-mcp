@@ -49,10 +49,8 @@ This MCP stops at lab VM readiness:
 - returns inventory and Run Evidence for consuming projects
 - moves VMs from bootstrap to final lab network when explicitly confirmed
 
-It does not deploy or update agentic-chat, install product components, restart
-application services, or own product-specific Ansible. Agentic-chat day-2
-deployment belongs to
-[`servers/agentic-chat-deploy-mcp`](../agentic-chat-deploy-mcp).
+It does not deploy, update, or install product components, restart application
+services, or own product-specific Ansible.
 
 The optional `run_os_baseline` flag only invokes the provisioner's generic OS
 readiness baseline from the lab automation repo. It is not a product deployment
@@ -78,10 +76,10 @@ Credential profiles are server-local mappings from non-secret profile names to
 ignored files in the lab automation repo. The default profile uses:
 
 ```text
-security/vsphere.env
-security/guest.env
-security/ssh.env
-security/domain.env
+../DataExpert-vsphere-lab-automation/security/vsphere.env
+../DataExpert-vsphere-lab-automation/security/guest.env
+../DataExpert-vsphere-lab-automation/security/ssh.env
+../DataExpert-vsphere-lab-automation/security/domain.env
 ```
 
 To override or add profiles, set `VSPHERE_LAB_CREDENTIAL_PROFILES` to JSON:
@@ -99,7 +97,60 @@ To override or add profiles, set `VSPHERE_LAB_CREDENTIAL_PROFILES` to JSON:
 }
 ```
 
-Do not put raw secret values in MCP requests or committed files.
+### Credential Files
+
+Create the credential files in the lab automation repo, not in this MCP repo:
+
+```bash
+cd ../DataExpert-vsphere-lab-automation
+mkdir -p security
+```
+
+`security/vsphere.env` is required for live vSphere preflight, apply, and
+final-network moves:
+
+```text
+VSPHERE_HOST=vcenter.example.local
+VSPHERE_USER=administrator@vsphere.local
+VSPHERE_PASS=replace-with-local-secret
+```
+
+`security/guest.env` is required when live apply needs VMware Guest Operations:
+
+```text
+GUEST_USER=local-vm-admin
+GUEST_PASS=replace-with-local-secret
+```
+
+`security/ssh.env` is only needed when `run_os_baseline=true`:
+
+```text
+SSH_USER=local-vm-admin
+SSH_KEY_PATH=C:\Users\you\.ssh\lab_vm_key
+# Or use SSH_PASS instead of SSH_KEY_PATH:
+# SSH_PASS=replace-with-local-secret
+```
+
+`security/domain.env` is only needed when `run_os_baseline=true` and the OS
+baseline joins/configures a domain:
+
+```text
+DOMAIN_USER=domain-join-user
+DOMAIN_PASS=replace-with-local-secret
+```
+
+MCP calls do not pass these paths or values. They pass the profile name:
+
+```json
+{
+  "credential_profile": "default",
+  "allow_live_vsphere": true,
+  "confirmation": "vsphere_lab_apply:example-vsphere-lab"
+}
+```
+
+Do not put raw secret values in MCP requests or committed files. The
+`security/` directories are ignored and should stay local to each machine.
 
 ## Source-First Setup
 
