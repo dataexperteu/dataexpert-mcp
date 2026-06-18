@@ -14,7 +14,7 @@ See [CONVENTIONS.md](./CONVENTIONS.md) for the per-server layout and principles.
 | Memgraph | [servers/memgraph-mcp](./servers/memgraph-mcp) | Python 3.11+ | Active | Evidence and context graph tools over Memgraph, including graph queries, entity/path lookup, hypotheses, findings, action cards, and case-scoped upserts. |
 | GraphAware Hume | [servers/graphaware-mcp](./servers/graphaware-mcp) | Python 3.11+ | Active | Hume stack operations, health checks, and authenticated REST API passthrough tools. |
 | Agentic Chat Deploy | [servers/agentic-chat-deploy-mcp](./servers/agentic-chat-deploy-mcp) | Python 3.11+ | Active | Day-2 deployment of the agentic-chat app over SSH: inventory lookup, status, and ref update + service restart. |
-| DataExpert vSphere Lab | [servers/vsphere-lab-mcp](./servers/vsphere-lab-mcp) | Python 3.11+ | Phase 0 | Standard MCP interface for vSphere lab planning, preflight, provisioning, SSH readiness, inventory, final-network moves, and run evidence. |
+| DataExpert vSphere Lab | [servers/vsphere-lab-mcp](./servers/vsphere-lab-mcp) | Python 3.11+ | Phase 0 | Standard MCP interface for vSphere lab planning, preflight, provisioning, SSH readiness, inventory, final-network moves, and run evidence. It stops before product deployment. |
 | Zoho CRM | [servers/zoho-mcp](./servers/zoho-mcp) | Node.js 20+ | Phase 0 | Stateless gateway to Zoho CRM account/contact/email tools over Streamable HTTP. |
 
 ## Configuration
@@ -60,6 +60,9 @@ when available.
 Authoritative project topologies stay in the consuming project repository. This
 repo only owns the MCP implementation and examples/templates. See
 [servers/vsphere-lab-mcp/README.md](./servers/vsphere-lab-mcp/README.md).
+
+Product and service deployment stays in the consuming project or a narrow deploy
+server such as [servers/agentic-chat-deploy-mcp](./servers/agentic-chat-deploy-mcp).
 
 ## Zoho Server
 

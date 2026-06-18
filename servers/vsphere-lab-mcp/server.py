@@ -12,7 +12,7 @@ import os
 import re
 import subprocess
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -73,7 +73,11 @@ def _run_root(lab_repo: Path) -> Path:
 
 
 def _provisioner_bin() -> str:
-    return os.getenv("VSPHERE_PROVISIONER_BIN", "provisioner")
+    configured = os.getenv("VSPHERE_PROVISIONER_BIN", "provisioner").strip() or "provisioner"
+    path = Path(configured)
+    if not path.is_absolute() and ("/" in configured or "\\" in configured):
+        return str((_lab_repo() / path).resolve())
+    return configured
 
 
 def _default_profile_name() -> str:
@@ -222,7 +226,7 @@ def _structured_response(operation: str, topology: dict[str, Any], result: Provi
         "topology_name": _topology_name(topology),
         "ok": result.ok,
         "exit_code": result.exit_code,
-        "command": result.command,
+        "command": _public_command(result.command),
         "cwd": result.cwd,
         "stdout": result.stdout,
         "stderr": result.stderr,
@@ -245,15 +249,27 @@ def _extract_evidence_dir(stdout: str, run_root: Path) -> Path | None:
         resolved = path.resolve()
         if resolved.exists():
             return resolved
-    return _latest_run_dir(run_root)
+    return None
 
 
-def _latest_run_dir(run_root: Path) -> Path | None:
-    runs = run_root / "runs"
-    if not runs.is_dir():
-        return None
-    dirs = [path for path in runs.iterdir() if path.is_dir()]
-    return max(dirs, key=lambda p: p.stat().st_mtime, default=None)
+def _public_command(command: list[str]) -> list[str]:
+    redacted: list[str] = []
+    redact_next = False
+    for item in command:
+        if redact_next:
+            redacted.append("<server-local-profile-path>")
+            redact_next = False
+            continue
+        redacted.append(item)
+        if item in {
+            "-credentials",
+            "-guest-credentials",
+            "-ssh-credentials",
+            "-domain-credentials",
+            "-playbook",
+        }:
+            redact_next = True
+    return redacted
 
 
 def _read_evidence(evidence_dir: Path) -> dict[str, Any]:
@@ -368,9 +384,9 @@ async def vsphere_lab_apply(
     credential_profile: str = "",
     allow_live_vsphere: bool = False,
     datacenter: str = "",
-    run_linux_baseline: bool = False,
+    run_os_baseline: bool = False,
 ) -> dict[str, Any]:
-    """Provision or reconcile topology VMs. Requires live opt-in and exact confirmation."""
+    """Provision or reconcile lab VMs. Product deployment remains outside this MCP."""
     if not allow_live_vsphere:
         raise ValueError("allow_live_vsphere must be true for live vSphere mutation")
     _confirmation("vsphere_lab_apply", topology, confirmation)
@@ -382,7 +398,7 @@ async def vsphere_lab_apply(
             lab_repo,
             profile,
             include_guest=True,
-            include_baseline=run_linux_baseline,
+            include_baseline=run_os_baseline,
             datacenter=datacenter,
         ),
     ]
@@ -397,7 +413,7 @@ async def vsphere_lab_ensure_ssh_ready(
     allow_live_vsphere: bool = False,
     datacenter: str = "",
 ) -> dict[str, Any]:
-    """Provision/reconcile VMs until guest IPs are discovered and SSH is reachable."""
+    """Provision/reconcile lab VMs until guest IPs are discovered and SSH is reachable."""
     if not allow_live_vsphere:
         raise ValueError("allow_live_vsphere must be true for live vSphere mutation")
     _confirmation("vsphere_lab_ensure_ssh_ready", topology, confirmation)
@@ -412,7 +428,7 @@ async def vsphere_lab_ensure_ssh_ready(
 
 @mcp.tool()
 async def vsphere_lab_inventory(topology: dict[str, Any], run_evidence_dir: str = "") -> dict[str, Any]:
-    """Return inline Ansible inventory content from run evidence for this topology."""
+    """Return inline inventory content from run evidence for this topology."""
     _assert_topology_payload(topology)
     lab_repo = _lab_repo()
     run_root = _run_root(lab_repo)
@@ -452,9 +468,9 @@ async def vsphere_lab_ensure_ready(
     credential_profile: str = "",
     allow_live_vsphere: bool = False,
     datacenter: str = "",
-    run_linux_baseline: bool = False,
+    run_os_baseline: bool = False,
 ) -> dict[str, Any]:
-    """Convenience workflow: ensure SSH-ready inventory, then move VMs to final network."""
+    """Convenience workflow: ensure SSH-ready lab VMs, then move them to final network."""
     if not allow_live_vsphere:
         raise ValueError("allow_live_vsphere must be true for live vSphere mutation")
     _confirmation("vsphere_lab_ensure_ready", topology, confirmation)
@@ -466,7 +482,7 @@ async def vsphere_lab_ensure_ready(
             lab_repo,
             profile,
             include_guest=True,
-            include_baseline=run_linux_baseline,
+            include_baseline=run_os_baseline,
             datacenter=datacenter,
         ),
     ]
@@ -501,6 +517,9 @@ def _select_evidence_dir(run_root: Path, topology: dict[str, Any], requested: st
         if not path.is_absolute():
             path = run_root / requested
         resolved = path.resolve()
+        root = run_root.resolve()
+        if resolved != root and root not in resolved.parents:
+            raise ValueError(f"run_evidence_dir must stay inside VSPHERE_LAB_RUN_ROOT: {resolved}")
         if not resolved.is_dir():
             raise FileNotFoundError(f"run_evidence_dir does not exist: {resolved}")
         return resolved

@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 
 # Load local secrets.env so the MCP server can access SSH and sudo credentials.
 try:

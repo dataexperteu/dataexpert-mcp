@@ -39,6 +39,25 @@ Results are machine-readable and include provisioner stdout/stderr, resolved VM
 state from Run Evidence, SSH readiness records, inline Ansible inventory content
 when generated, and Run Evidence file references.
 
+## Boundary
+
+This MCP stops at lab VM readiness:
+
+- validates and plans topology payloads
+- runs vSphere preflight/provision/reconcile through the provisioner
+- verifies guest IP and SSH readiness
+- returns inventory and Run Evidence for consuming projects
+- moves VMs from bootstrap to final lab network when explicitly confirmed
+
+It does not deploy or update agentic-chat, install product components, restart
+application services, or own product-specific Ansible. Agentic-chat day-2
+deployment belongs to
+[`servers/agentic-chat-deploy-mcp`](../agentic-chat-deploy-mcp).
+
+The optional `run_os_baseline` flag only invokes the provisioner's generic OS
+readiness baseline from the lab automation repo. It is not a product deployment
+hook.
+
 ## Configuration
 
 Set these in `security/secrets.env` at the `dataexpert-mcp` repo root:
