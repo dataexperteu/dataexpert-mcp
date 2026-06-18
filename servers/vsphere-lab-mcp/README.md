@@ -103,6 +103,9 @@ Do not put raw secret values in MCP requests or committed files.
 
 ## Source-First Setup
 
+Prerequisite: Go 1.24+ installed from the official Go distribution at
+`https://go.dev/dl/` or another verified package source.
+
 Clone the lab automation repo beside this repo and build the provisioner locally:
 
 ```bash
