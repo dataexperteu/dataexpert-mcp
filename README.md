@@ -30,6 +30,13 @@ Each server reads only the settings it needs. Keep real credentials in
 `security/secrets.env` or the server-local `.env` files described by that
 server's README.
 
+## Prerequisites
+
+- Python 3.11+ for the Python MCP servers.
+- Node.js 20+ for `servers/zoho-mcp`.
+- Go 1.24+ for building the sibling vSphere lab provisioner used by
+  `servers/vsphere-lab-mcp`.
+
 ## Python Servers
 
 Install and run a Python MCP server from its directory:
