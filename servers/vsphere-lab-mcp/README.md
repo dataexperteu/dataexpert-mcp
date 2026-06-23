@@ -61,6 +61,19 @@ The MCP forwards these fields verbatim — it adds no schema beyond requiring
   declares the OS/template target. RHEL9 is the target; `ubuntu-interim` is the
   explicit interim until a RHEL9 template exists. It is orthogonal to `guest_os`
   and `source_template`. Available in `defaults` and per VM.
+
+### RHEL 9 topologies
+
+Setting `os_intent: "rhel9"` selects the RHEL 9 template path. The target
+template is **`DX-LAB-RHEL9-TEMPLATE`**. Until that template is built (tracked
+in the lab automation repo), a `rhel9` topology must set `source_template` to
+the interim Ubuntu template (for example `Neo UBUNTU 24.04`) as the explicit
+fallback. This is the `os_intent` guardrail: `os_intent` records the intended
+RHEL 9 target while `source_template` names the template the provisioner
+actually clones, so the gap between intent and the real backing template is
+always explicit rather than silently assumed. Once `DX-LAB-RHEL9-TEMPLATE`
+exists, set `source_template` to it. See `examples/rhel9-topology.json` for a
+neutral RHEL 9 demonstration using `compute` / `storage` roles.
 - **`shared_storage`** (per-VM block): generic OS-ops storage handoff metadata
   with `mount_path` (string), `required_gb` (int), and `provision` (bool;
   `false` = external endpoint the lab consumes, `true` = the lab provisions the
