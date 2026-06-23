@@ -234,6 +234,7 @@ def _structured_response(operation: str, topology: dict[str, Any], result: Provi
         "inventory": _inventory(evidence),
         "resolved_vm_state": _resolved_vm_state(evidence),
         "ssh_readiness": _ssh_readiness(evidence),
+        "storage_readiness": _storage_readiness(evidence),
     }
 
 
@@ -312,6 +313,10 @@ def _resolved_vm_state(evidence: dict[str, Any]) -> list[dict[str, Any]]:
     records = evidence.get("records", {})
     resolved = records.get("resolved-topology", {})
     states: dict[str, dict[str, Any]] = {}
+    # The full resolved-topology VM object is forwarded under "resolved", so any
+    # infrastructure field the provisioner records on the VM (including the new
+    # os_intent and shared_storage handoff metadata) flows through automatically
+    # without needing a per-field allowlist here.
     for vm in resolved.get("vms", []) if isinstance(resolved, dict) else []:
         if isinstance(vm, dict) and vm.get("name"):
             states[str(vm["name"])] = {"name": vm["name"], "resolved": vm}
@@ -348,6 +353,17 @@ def _ssh_readiness(evidence: dict[str, Any]) -> list[dict[str, Any]]:
         if key.startswith("ssh-") and isinstance(record, dict):
             readiness.append(record)
     return readiness
+
+
+def _storage_readiness(evidence: dict[str, Any]) -> list[dict[str, Any]]:
+    # The provisioner writes a single storage-readiness.json record whose body is
+    # a JSON array of per-mount readiness entries (states: pending-os-ops /
+    # verified / missing / external-endpoint). Surface it as a list, tolerating
+    # absence or an unexpected shape.
+    record = evidence.get("records", {}).get("storage-readiness")
+    if isinstance(record, list):
+        return [entry for entry in record if isinstance(entry, dict)]
+    return []
 
 
 def _run_topology_command(
@@ -443,6 +459,7 @@ async def vsphere_lab_inventory(topology: dict[str, Any], run_evidence_dir: str 
         "inventory": _inventory(evidence),
         "resolved_vm_state": _resolved_vm_state(evidence),
         "ssh_readiness": _ssh_readiness(evidence),
+        "storage_readiness": _storage_readiness(evidence),
     }
 
 
@@ -508,6 +525,7 @@ async def vsphere_lab_ensure_ready(
         "inventory": move_result.get("inventory") or apply_result.get("inventory"),
         "resolved_vm_state": move_result.get("resolved_vm_state") or apply_result.get("resolved_vm_state"),
         "ssh_readiness": apply_result.get("ssh_readiness", []),
+        "storage_readiness": move_result.get("storage_readiness") or apply_result.get("storage_readiness", []),
     }
 
 
