@@ -1,0 +1,60 @@
+{
+  "name": "flexible-vsphere-lab",
+  "defaults": {
+    "guest_os": "linux",
+    "source_template": "Neo UBUNTU 24.04",
+    "os_intent": "rhel9",
+    "bootstrap_network": "VM Network",
+    "final_network": "Lab Isolated",
+    "host": "172.16.85.25",
+    "datastore": "SSD-01 1 TB",
+    "cpu": 2,
+    "memory_mb": 8192,
+    "disk_gb": 60,
+    "ansible_vars": {
+      "lab_timezone": "UTC"
+    }
+  },
+  "vms": [
+    {
+      "name": "flexible-lab-compute-01",
+      "role": "compute",
+      "group": "primary",
+      "shared_storage": {
+        "mount_path": "/mnt/shared-data",
+        "required_gb": 200,
+        "provision": false
+      }
+    },
+    {
+      "name": "flexible-lab-compute-02",
+      "role": "compute",
+      "group": "standby",
+      "source_template": "Neo RHEL 9.4",
+      "shared_storage": {
+        "mount_path": "/mnt/shared-data",
+        "required_gb": 200,
+        "provision": false
+      }
+    },
+    {
+      "name": "flexible-lab-win-01",
+      "role": "compute",
+      "group": "windows",
+      "guest_os": "windows",
+      "source_template": "Neo WINDOWS Server 2022",
+      "os_intent": "ubuntu-interim"
+    },
+    {
+      "name": "flexible-lab-storage-01",
+      "role": "storage",
+      "group": "primary",
+      "disk_gb": 400,
+      "shared_storage": {
+        "mount_path": "/mnt/shared-data",
+        "required_gb": 200,
+        "provision": true
+      }
+    }
+  ]
+}

@@ -36,8 +36,53 @@ vsphere_lab_ensure_ready:<topology.name>
 ```
 
 Results are machine-readable and include provisioner stdout/stderr, resolved VM
-state from Run Evidence, SSH readiness records, inline Ansible inventory content
-when generated, and Run Evidence file references.
+state from Run Evidence, SSH readiness records, storage readiness records, inline
+Ansible inventory content when generated, and Run Evidence file references. The
+resolved VM state forwards every resolved-topology field, so infrastructure
+metadata such as `os_intent` and the `shared_storage` handoff flow through
+automatically per VM.
+
+## Topology flexibility
+
+The provisioner topology model supports flexible, infrastructure-level shaping.
+The MCP forwards these fields verbatim — it adds no schema beyond requiring
+`name` and rejecting secret-looking keys.
+
+- **`defaults` block + per-VM overrides.** Set repo-wide infrastructure values
+  in `defaults`, then override any of them on individual VMs:
+  `guest_os`, `source_template`, `cpu`, `memory_mb`, `disk_gb`, `host`,
+  `datastore`, `bootstrap_network`, `final_network`, and `ansible_vars`.
+- **`guest_os`** (`linux` | `windows`): selects the guest operating system
+  family for a VM (defaults plus per-VM override).
+- **`source_template` override / mixed Linux + Windows.** Each VM may override
+  the source template, so a single topology can mix Linux and Windows guests by
+  pairing the matching `guest_os` with a per-VM `source_template`.
+- **`os_intent`** (`rhel9` | `ubuntu-interim` | unset): visibility metadata that
+  declares the OS/template target. RHEL9 is the target; `ubuntu-interim` is the
+  explicit interim until a RHEL9 template exists. It is orthogonal to `guest_os`
+  and `source_template`. Available in `defaults` and per VM.
+- **`shared_storage`** (per-VM block): generic OS-ops storage handoff metadata
+  with `mount_path` (string), `required_gb` (int), and `provision` (bool;
+  `false` = external endpoint the lab consumes, `true` = the lab provisions the
+  backing storage VM).
+- **`role` / `group`** (per VM): generic grouping fields that drive a
+  role-grouped Ansible inventory, including an `all.vars.lab_role_hosts` map
+  (role -> sorted host list) and per-host `lab_os_intent`,
+  `lab_storage_mount_path`, `lab_storage_required_gb`, and
+  `lab_storage_provision` vars.
+
+The structured result also surfaces these: each resolved VM carries its
+`os_intent` and `shared_storage` handoff (via `resolved_vm_state`), the
+`storage_readiness` section reports per-mount readiness state
+(`pending-os-ops` / `verified` / `missing` / `external-endpoint`), and the
+inline inventory exposes the `lab_role_hosts` / `lab_*` vars.
+
+Application-specific topology — product roles, application configuration, worker
+counts, and any product or component names — belongs in the consuming project's
+topology payload and repository, **not** in this MCP's contract or examples.
+This MCP and its examples stay technology-agnostic and model only
+infrastructure concerns. See `examples/flexible-topology.json` for a neutral
+demonstration using `compute` / `storage` roles.
 
 ## Boundary
 
