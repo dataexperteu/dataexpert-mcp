@@ -65,15 +65,17 @@ The MCP forwards these fields verbatim — it adds no schema beyond requiring
 ### RHEL 9 topologies
 
 Setting `os_intent: "rhel9"` selects the RHEL 9 template path. The target
-template is **`DX-LAB-RHEL9-TEMPLATE`**. Until that template is built (tracked
-in the lab automation repo), a `rhel9` topology must set `source_template` to
-the interim Ubuntu template (for example `Neo UBUNTU 24.04`) as the explicit
-fallback. This is the `os_intent` guardrail: `os_intent` records the intended
-RHEL 9 target while `source_template` names the template the provisioner
-actually clones, so the gap between intent and the real backing template is
-always explicit rather than silently assumed. Once `DX-LAB-RHEL9-TEMPLATE`
-exists, set `source_template` to it. See `examples/rhel9-topology.json` for a
-neutral RHEL 9 demonstration using `compute` / `storage` roles.
+template **`DX-LAB-RHEL9-TEMPLATE`** is **built and available** (RHEL 9.8, built
+2026-06-25 in the lab vCenter), so a `rhel9` topology sets
+`source_template: "DX-LAB-RHEL9-TEMPLATE"` directly — as shown in
+`examples/rhel9-topology.json` (a neutral `compute` / `storage` demonstration).
+
+`os_intent` and `source_template` stay distinct on purpose (the guardrail):
+`os_intent` records the intended OS target while `source_template` names the
+template the provisioner actually clones. If the RHEL 9 template is ever
+unavailable, a topology may keep `os_intent: "rhel9"` and set `source_template`
+to the interim Ubuntu template (e.g. `Neo UBUNTU 24.04`) as an explicit
+fallback — never a silent default.
 - **`shared_storage`** (per-VM block): generic OS-ops storage handoff metadata
   with `mount_path` (string), `required_gb` (int), and `provision` (bool;
   `false` = external endpoint the lab consumes, `true` = the lab provisions the
