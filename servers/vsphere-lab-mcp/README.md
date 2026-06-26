@@ -61,6 +61,50 @@ The MCP forwards these fields verbatim — it adds no schema beyond requiring
   declares the OS/template target. RHEL9 is the target; `ubuntu-interim` is the
   explicit interim until a RHEL9 template exists. It is orthogonal to `guest_os`
   and `source_template`. Available in `defaults` and per VM.
+
+### RHEL 9 topologies
+
+Setting `os_intent: "rhel9"` selects the RHEL 9 template path. The target
+template **`DX-LAB-RHEL9-TEMPLATE`** is **built and available** (RHEL 9.8, built
+2026-06-25 in the lab vCenter), so a `rhel9` topology sets
+`source_template: "DX-LAB-RHEL9-TEMPLATE"` directly — as shown in
+`examples/rhel9-topology.json` (a neutral `compute` / `storage` demonstration).
+
+`os_intent` and `source_template` stay distinct on purpose (the guardrail):
+`os_intent` records the intended OS target while `source_template` names the
+template the provisioner actually clones. If the RHEL 9 template is ever
+unavailable, a topology may keep `os_intent: "rhel9"` and set `source_template`
+to the interim Ubuntu template (e.g. `Neo UBUNTU 24.04`) as an explicit
+fallback — never a silent default.
+
+### RHEL 9 SSH access — read this before you provision (avoids the SSH dead-end)
+
+How to log into the RHEL 9 VMs you provision, and how to keep it secure:
+
+- **Login is `dxadmin` over SSH with the lab automation key — key-only.** The
+  `DX-LAB-RHEL9-TEMPLATE` ships `dxadmin` with the lab automation **public** key
+  (`csm-automation`) in `authorized_keys`. `root` and the `dxadmin` password are
+  **locked** — there is **no password login** and no root SSH. Use the matching
+  **private** key (the lab `csm_deploy_key`). Do not look for a password.
+- **The private key is server-local, never in MCP payloads.** Select it through a
+  `credential_profile` / the provisioner's `security/ssh.env`
+  (`SSH_USER=dxadmin`, `SSH_KEY_PATH=...`). **Never** put SSH keys, passwords, or
+  any secret in a topology payload or MCP request — the server rejects
+  secret-looking keys, and that is the intended security boundary.
+- **Let the provisioner make VMs SSH-ready; don't hand-roll it.** The
+  apply/ensure-ssh-ready tools discover the guest IP via VMware tools and verify
+  SSH before reporting readiness. The OS baseline (run only when you ask for it)
+  sets unique hostnames/identity over that SSH credential.
+- **Do NOT chase a key on the OEMDRV ISO.** `OEMDRV` is the *kickstart* medium
+  used only during the template install; it is **not** a cloud-init datasource
+  and clones don't even have it attached. There is no per-VM key hidden there.
+- **Recovery if a clone has no way in** (e.g. provisioned before the template was
+  keyed): attach a cloud-init **NoCloud** seed — a CD labeled `cidata` containing
+  `meta-data` (a fresh `instance-id`) and `user-data` (`#cloud-config` with a
+  `runcmd` that writes the public key to `/home/dxadmin/.ssh/authorized_keys`,
+  `usermod -U dxadmin`, `restorecon`) — then power-cycle. cloud-init runs as root
+  and injects the key without any login. This needs vSphere access (a human with
+  credentials), not an MCP call.
 - **`shared_storage`** (per-VM block): generic OS-ops storage handoff metadata
   with `mount_path` (string), `required_gb` (int), and `provision` (bool;
   `false` = external endpoint the lab consumes, `true` = the lab provisions the
